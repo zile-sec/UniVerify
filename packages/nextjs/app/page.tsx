@@ -1,79 +1,169 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 import { Address } from "@scaffold-ui/components";
 import type { NextPage } from "next";
+import { parseAbi } from "viem";
 import { hardhat } from "viem/chains";
 import { useAccount } from "wagmi";
-import { BugAntIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { useReadContract, useWriteContract } from "wagmi";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth";
 
+// IMPORTANT: Replace with your deployed contract address
+const contractAddress = "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0";
+
+const abi = parseAbi([
+  "function mintDegree(address student, string studentId, string uri)",
+  "function verifyDegree(uint256 tokenId) view returns (address owner, string uri, string studentId, address issuer, uint256 timestamp, bool isFunded)",
+]);
+
 const Home: NextPage = () => {
-  const { address: connectedAddress } = useAccount();
+  const { address: connectedAddress, isConnected } = useAccount();
   const { targetNetwork } = useTargetNetwork();
+  const { writeContractAsync } = useWriteContract();
+
+  const [studentWallet, setStudentWallet] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [uri, setUri] = useState("");
+
+  const [tokenId, setTokenId] = useState("");
+  const [verifyToken, setVerifyToken] = useState<bigint | undefined>();
+
+  const [status, setStatus] = useState("");
+
+  // 🔍 Read contract
+  const { data: verifyData } = useReadContract({
+    address: contractAddress as `0x${string}`,
+    abi,
+    functionName: "verifyDegree",
+    args: verifyToken !== undefined ? [verifyToken] : undefined,
+    query: { enabled: verifyToken !== undefined },
+  });
+
+  // 📝 Write contract
+  const handleMint = async () => {
+    try {
+      setStatus("Waiting for wallet confirmation...");
+
+      const tx = await writeContractAsync({
+        address: contractAddress as `0x${string}`,
+        abi,
+        functionName: "mintDegree",
+        args: [studentWallet as `0x${string}`, studentId, uri],
+      });
+
+      setStatus(`Transaction sent: ${tx}`);
+    } catch (error) {
+      setStatus("Transaction failed or rejected.");
+      console.error(error);
+    }
+  };
 
   return (
-    <>
-      <div className="flex items-center flex-col grow pt-10">
-        <div className="px-5">
-          <h1 className="text-center">
-            <span className="block text-2xl mb-2">Welcome to</span>
-            <span className="block text-4xl font-bold">Scaffold-ETH 2</span>
-          </h1>
-          <div className="flex justify-center items-center space-x-2 flex-col">
-            <p className="my-2 font-medium">Connected Address:</p>
-            <Address
-              address={connectedAddress}
-              chain={targetNetwork}
-              blockExplorerAddressLink={
-                targetNetwork.id === hardhat.id ? `/blockexplorer/address/${connectedAddress}` : undefined
-              }
-            />
-          </div>
-          <p className="text-center text-lg">
-            Get started by editing{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              packages/nextjs/app/page.tsx
-            </code>
-          </p>
-          <p className="text-center text-lg">
-            Edit your smart contract{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              YourContract.sol
-            </code>{" "}
-            in{" "}
-            <code className="italic bg-base-300 text-base font-bold max-w-full break-words break-all inline-block">
-              packages/hardhat/contracts
-            </code>
-          </p>
-        </div>
-
-        <div className="grow bg-base-300 w-full mt-16 px-8 py-12">
-          <div className="flex justify-center items-center gap-12 flex-col md:flex-row">
-            <div className="flex flex-col bg-base-100 px-10 py-10 text-center items-center max-w-xs rounded-3xl">
-              <BugAntIcon className="h-8 w-8 fill-secondary" />
-              <p>
-                Tinker with your smart contract using the{" "}
-                <Link href="/debug" passHref className="link">
-                  Debug Contracts
-                </Link>{" "}
-                tab.
-              </p>
-            </div>
-            <div className="flex flex-col bg-base-100 px-10 py-10 text-center items-center max-w-xs rounded-3xl">
-              <MagnifyingGlassIcon className="h-8 w-8 fill-secondary" />
-              <p>
-                Explore your local transactions with the{" "}
-                <Link href="/blockexplorer" passHref className="link">
-                  Block Explorer
-                </Link>{" "}
-                tab.
-              </p>
-            </div>
-          </div>
-        </div>
+    <div className="flex flex-col items-center p-10 space-y-10">
+      {/* 🔗 Wallet Section */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold mb-2">UniVerify DApp</h1>
+        <p className="font-medium">Connected Address:</p>
+        <Address
+          address={connectedAddress}
+          chain={targetNetwork}
+          blockExplorerAddressLink={
+            targetNetwork.id === hardhat.id ? `/blockexplorer/address/${connectedAddress}` : undefined
+          }
+        />
+        <p className="mt-2">Status: {isConnected ? "Connected" : "Not Connected"}</p>
       </div>
-    </>
+
+      {/* 📝 Mint Degree */}
+      <div className="border p-6 rounded-xl w-full max-w-md space-y-3">
+        <h2 className="text-xl font-bold">Register Degree</h2>
+
+        <input
+          className="border p-2 w-full"
+          placeholder="Student Wallet Address"
+          value={studentWallet}
+          onChange={e => setStudentWallet(e.target.value)}
+        />
+
+        <input
+          className="border p-2 w-full"
+          placeholder="Student ID"
+          value={studentId}
+          onChange={e => setStudentId(e.target.value)}
+        />
+
+        <input
+          className="border p-2 w-full"
+          placeholder="Metadata URI"
+          value={uri}
+          onChange={e => setUri(e.target.value)}
+        />
+
+        <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={handleMint} disabled={!isConnected}>
+          Submit Transaction
+        </button>
+      </div>
+
+      {/* 🔍 Verify Degree */}
+      <div className="border p-6 rounded-xl w-full max-w-md space-y-3">
+        <h2 className="text-xl font-bold">Verify Degree</h2>
+
+        <input
+          className="border p-2 w-full"
+          placeholder="Enter Token ID"
+          value={tokenId}
+          onChange={e => setTokenId(e.target.value)}
+        />
+
+        <button
+          className="bg-green-500 text-white px-4 py-2 rounded"
+          onClick={() => {
+            try {
+              if (tokenId.trim() === "") {
+                setStatus("Please enter a token ID");
+                return;
+              }
+              setVerifyToken(BigInt(tokenId));
+              setStatus("Verifying...");
+            } catch {
+              setStatus("Invalid token ID");
+            }
+          }}
+        >
+          Verify
+        </button>
+
+        {verifyData && (
+          <div className="mt-4 text-sm space-y-1">
+            <p>
+              <strong>Owner:</strong> {verifyData[0]}
+            </p>
+            <p>
+              <strong>URI:</strong> {verifyData[1]}
+            </p>
+            <p>
+              <strong>Student ID:</strong> {verifyData[2]}
+            </p>
+            <p>
+              <strong>Issuer:</strong> {verifyData[3]}
+            </p>
+            <p>
+              <strong>Timestamp:</strong> {verifyData[4].toString()}
+            </p>
+            <p>
+              <strong>Funded:</strong> {verifyData[5] ? "Yes" : "No"}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* 📊 Status */}
+      <div className="border p-4 rounded-xl w-full max-w-md text-center">
+        <h2 className="font-bold">Transaction Status</h2>
+        <p>{status || "No transaction yet."}</p>
+      </div>
+    </div>
   );
 };
 
