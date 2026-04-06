@@ -158,7 +158,7 @@ const Home: NextPage = () => {
         )}
       </div>
 
-      {/* 📊 Status */}
+      {/* Status */}
       <div className="border p-4 rounded-xl w-full max-w-md text-center">
         <h2 className="font-bold">Transaction Status</h2>
         <p>{status || "No transaction yet."}</p>

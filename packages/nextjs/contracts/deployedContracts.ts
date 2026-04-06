@@ -409,7 +409,7 @@ const deployedContracts = {
       deployedOnBlock: 2,
     },
     ChainGradNFT: {
-      address: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      address: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0", // deployed contract address to be used
       abi: [
         {
           inputs: [
